@@ -1,0 +1,177 @@
+/* Modern global theme for EPUB reader app */
+:root {
+  --color-bg: #f6f7fb;
+  --color-bg-gradient: linear-gradient(135deg, #f6f7fb 0%, #e9ecef 100%);
+  --color-primary: #007aff;
+  --color-secondary: #5ac8fa;
+  --color-accent: #ffe9a8;
+  --color-text: #1d1d1f;
+  --color-muted: #86868b;
+  --color-card: #fff;
+  --color-border: #e5e5ea;
+  --radius: 14px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.08);
+  --font-main: 'Inter', system-ui, sans-serif;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-main);
+  background: var(--color-bg-gradient);
+  color: var(--color-text);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+  min-width: 100vw;
+  box-sizing: border-box;
+}
+
+#app {
+  min-height: 100vh;
+  min-width: 100vw;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  background: transparent;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-main);
+  color: var(--color-text);
+  margin-top: 0;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+a:hover {
+  color: var(--color-secondary);
+}
+
+button, input, select, textarea {
+  font-family: var(--font-main);
+  font-size: 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+button {
+  cursor: pointer;
+  background: var(--color-card);
+  color: var(--color-primary);
+  border: 1px solid var(--color-border);
+  padding: 8px 18px;
+  border-radius: var(--radius);
+  font-weight: 500;
+  box-shadow: none;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+button:active {
+  background: var(--color-accent);
+  color: var(--color-text);
+}
+button:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-secondary);
+}
+
+input, select, textarea {
+  background: var(--color-card);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-secondary);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  background: var(--color-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 8px;
+}
+
+/* Utility classes */
+.text-muted {
+  color: var(--color-muted);
+}
+.card {
+  background: var(--color-card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.shadow {
+  box-shadow: var(--shadow);
+}
+.rounded {
+  border-radius: var(--radius);
+}
+
+/* Responsive tweaks */
+@media (max-width: 700px) {
+  html, body, #app {
+    font-size: 15px;
+  }
+}
+
+/* Print Styles */
+@media print {
+  * {
+    background: transparent !important;
+    color: black !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  
+  a, a:visited {
+    text-decoration: underline;
+  }
+  
+  abbr[title]:after {
+    content: " (" attr(title) ")";
+  }
+  
+  pre, blockquote {
+    border: 1px solid #999;
+    page-break-inside: avoid;
+  }
+  
+  thead {
+    display: table-header-group;
+  }
+  
+  tr, img {
+    page-break-inside: avoid;
+  }
+  
+  img {
+    max-width: 100% !important;
+  }
+  
+  p, h2, h3 {
+    orphans: 3;
+    widows: 3;
+  }
+  
+  h2, h3 {
+    page-break-after: avoid;
+  }
+}
