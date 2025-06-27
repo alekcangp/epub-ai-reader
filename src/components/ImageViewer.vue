@@ -107,7 +107,7 @@
                 <img src="/metamask-fox-dev.svg" alt="MetaMask" style="height: 18px; vertical-align: middle; margin-right: 4px; margin-left: 4px;" />
               </span>
               <span>
-                Please switch your wallet to <b>Base</b>.
+                Please switch your wallet to <b>Base Sepolia</b>.
               </span>
             </div>
             <form @submit.prevent="mintNFT" class="mint-form">
@@ -137,7 +137,7 @@
           <div class="mint-success-content">
             <div v-if="mintingState.coinAddress" class="zora-btn-center-wrap">
               <a
-                :href="`https://testnet.zora.co/collect/base-sepolia:${mintingState.coinAddress}`"
+                :href="`https://testnet.zora.co/coin/bsep:${mintingState.coinAddress}`"
                 target="_blank"
                 rel="noopener"
                 class="zora-view-btn user-friendly-zora-btn"
