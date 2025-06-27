@@ -108,7 +108,9 @@
             :isGenerating="isGeneratingImage"
             :selectedText="selectedText"
             :bookTitle="bookMetadata?.title"
-            @regenerate="regenerateCurrentImage"
+            :selectedArtStyle="selectedArtStyle"
+            :wasCanceled="wasGenerationCanceled"
+            @regenerate="regenerateCurrentImageWithStyle"
             @download="downloadImage"
           />
         </div>
@@ -164,20 +166,25 @@ const totalPages = ref(1);
 const currentPageNumber = ref(1);
 const currentGeneration = ref<AIGeneration | null>(null);
 const isGeneratingImage = ref(false);
+const wasGenerationCanceled = ref(false);
 const selectedText = ref('');
 const showUpload = ref(true); // controls upload UI (for drag-and-drop, optional)
 const fileInput = ref<HTMLInputElement | null>(null);
 const bookViewerKey = ref(0);
 const bookViewerRef = ref();
-const hasEmittedReady = ref(false);
 
 const aiService = new CloudflareAIService();
+
+// AbortController for AI image generation
+let imageGenAbortController: AbortController | null = null;
 
 const bookmarks = ref<{ cfi: string; label: string; timestamp: number }[]>([]);
 const showBookmarks = ref(false);
 
 const getBookmarksKey = () => `epub-bookmarks-${bookMetadata.value?.title || 'default'}`;
 const getLastCfiKey = () => `epub-last-cfi-${bookMetadata.value?.title || 'default'}`;
+
+const selectedArtStyle = ref(localStorage.getItem('epub-art-style') || 'Futuristic');
 
 const handleFileUpload = async (file: File) => {
   try {
@@ -189,7 +196,6 @@ const handleFileUpload = async (file: File) => {
     uploadError.value = '';
     showUpload.value = false;
     bookLoaded.value = false;
-    hasEmittedReady.value = false;
 
     console.log('Starting file upload process');
 
@@ -284,36 +290,63 @@ function onFileInputChange(event: Event) {
 }
 
 const handleTextSelection = async (text: string) => {
+  // If a generation is in progress, show 'Illustration canceled' for 1 second before starting new generation
+  if (isGeneratingImage.value) {
+    wasGenerationCanceled.value = true;
+    isGeneratingImage.value = false;
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
   selectedText.value = text;
   await generateImageForSelection(text);
 };
 
-const generateImageForSelection = async (text: string) => {
+let currentGenerationToken = 0;
+
+const generateImageForSelection = async (text: string, style?: string) => {
   if (!text.trim()) return;
+  // Abort any in-progress generation
+  if (imageGenAbortController) {
+    imageGenAbortController.abort();
+  }
+  imageGenAbortController = new AbortController();
+  // Clear previous image immediately
+  currentGeneration.value = null;
+  isGeneratingImage.value = true;
+  wasGenerationCanceled.value = false;
+  const myToken = ++currentGenerationToken;
   try {
-    isGeneratingImage.value = true;
-    // 1. Summarize the text
-    const summary = await aiService.summarizeText(text);
-    // 2. Generate image from summary
-    const imageUrl = await aiService.generateImage(summary);
-    // 3. Set the summary in currentGeneration
+    // Use the selected text directly as the prompt
+    const prompt = text;
+    const imageUrl = await aiService.generateImage(prompt, style || 'Futuristic', imageGenAbortController.signal);
+    if (myToken !== currentGenerationToken) return; // Outdated
     currentGeneration.value = {
-      summary, // set to the generated summary
+      summary: prompt,
       imageUrl,
-      prompt: summary,
+      prompt,
       isLoading: false
     };
-  } catch (error) {
-    console.error('Failed to summarize or generate image:', error);
+    wasGenerationCanceled.value = false;
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      wasGenerationCanceled.value = true;
+      return;
+    }
+    wasGenerationCanceled.value = false;
+    console.error('Failed to generate image:', error);
   } finally {
-    isGeneratingImage.value = false;
+    if (myToken === currentGenerationToken) isGeneratingImage.value = false;
   }
 };
 
-const regenerateCurrentImage = async () => {
+const regenerateCurrentImageWithStyle = async (style?: string) => {
+  if (style && style !== selectedArtStyle.value) {
+    selectedArtStyle.value = style;
+  }
   const content = selectedText.value;
   if (content) {
-    await generateImageForSelection(content);
+    await generateImageForSelection(content, style);
+  } else {
+    await generateImageForCurrentPage(style);
   }
 };
 
@@ -326,42 +359,93 @@ const downloadImage = (imageUrl: string) => {
   document.body.removeChild(link);
 };
 
+let imageGenDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+let isFirstPageChange = true;
+
 async function handlePageChange({ page, cfi }: { page: number; cfi: string }) {
+  console.log('[EpubReader] handlePageChange:', { page, cfi, currentCfi: currentCfi.value });
+  if (isFirstPageChange) {
+    isFirstPageChange = false;
+    // Don't update localStorage on the first event after load
+    return;
+  }
   if (cfi) {
     currentCfi.value = cfi;
     localStorage.setItem(getLastCfiKey(), cfi);
+    currentPageNumber.value = page;
+    // Debounce image generation here
+    if (imageGenDebounceTimer) clearTimeout(imageGenDebounceTimer);
+    imageGenDebounceTimer = setTimeout(() => {
+      generateImageForCurrentPage();
+    }, 500); // 500ms debounce
+  } else {
+    // Only update page number if CFI didn't change
+    currentPageNumber.value = page;
   }
-  currentPageNumber.value = page;
 }
 
-async function generateImageForCurrentPage() {
+async function generateImageForCurrentPage(style?: string) {
+  // Abort any in-progress generation
+  if (imageGenAbortController) {
+    imageGenAbortController.abort();
+  }
+  imageGenAbortController = new AbortController();
   const text = await bookViewerRef.value?.getCurrentPageText?.();
   if (text && text.trim().length > 0) {
-    await generateImageForSelection(text);
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Pause before generating
+    isGeneratingImage.value = true;
+    wasGenerationCanceled.value = false;
+    currentGeneration.value = null;
+    const myToken = ++currentGenerationToken;
+    try {
+      // Summarize the page text
+      const summary = await aiService.summarizeText(text, imageGenAbortController.signal);
+      const imageUrl = await aiService.generateImage(summary, style || 'Futuristic', imageGenAbortController.signal);
+      if (myToken !== currentGenerationToken) return;
+      currentGeneration.value = {
+        summary,
+        imageUrl,
+        prompt: summary,
+        isLoading: false
+      };
+      wasGenerationCanceled.value = false;
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        wasGenerationCanceled.value = true;
+        return;
+      }
+      wasGenerationCanceled.value = false;
+      console.error('Failed to summarize or generate image:', error);
+    } finally {
+      if (myToken === currentGenerationToken) isGeneratingImage.value = false;
+    }
   } else {
     currentGeneration.value = null;
   }
 }
 
-let imageGenDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-function debouncedGenerateImageForCurrentPage() {
-  if (imageGenDebounceTimer) clearTimeout(imageGenDebounceTimer);
-  imageGenDebounceTimer = setTimeout(() => {
-    generateImageForCurrentPage();
-  }, 500); // 500ms debounce
-}
+let lastPageTurnTime = 0;
+const PAGE_TURN_DELAY = 100; // ms
 
 async function nextPage() {
+  const now = Date.now();
+  if (now - lastPageTurnTime < PAGE_TURN_DELAY) return;
+  lastPageTurnTime = now;
+  console.log('[EpubReader] nextPage called. currentCfi:', currentCfi.value);
   if (bookViewerRef.value?.nextPage) {
     await bookViewerRef.value.nextPage();
-    debouncedGenerateImageForCurrentPage();
+    console.log('[EpubReader] nextPage finished. currentCfi:', currentCfi.value);
   }
 }
 async function previousPage() {
+  const now = Date.now();
+  if (now - lastPageTurnTime < PAGE_TURN_DELAY) return;
+  lastPageTurnTime = now;
+  console.log('[EpubReader] previousPage called. currentCfi:', currentCfi.value);
   if (bookViewerRef.value?.previousPage) {
     await bookViewerRef.value.previousPage();
-    debouncedGenerateImageForCurrentPage();
+    console.log('[EpubReader] previousPage finished. currentCfi:', currentCfi.value);
   }
 }
 
@@ -501,8 +585,13 @@ const onBookReady = () => {
   console.log('Book ready event received');
   isLoadingBook.value = false;
   bookLoaded.value = true;
-  hasEmittedReady.value = true;
+  isFirstPageChange = true;
 };
+
+// Watch and persist art style changes
+watch(selectedArtStyle, (val) => {
+  localStorage.setItem('epub-art-style', val);
+});
 </script>
 
 <style scoped>

@@ -6,6 +6,7 @@
     </div>
     <!-- Removed viewer-header (book-info and page-info) -->
     <div ref="epubContainer" class="epub-container-fixed"></div>
+    <!--
     <div v-if="selectedText" class="selection-panel">
       <div class="selection-info">
         <h4>Selected Text</h4>
@@ -20,6 +21,7 @@
         </div>
       </div>
     </div>
+    -->
   </div>
 </template>
 
@@ -48,22 +50,18 @@ const selectedText = ref('');
 const FONT_SIZE_KEY = 'epub-font-size';
 const fontSize = ref<number>(parseInt(localStorage.getItem(FONT_SIZE_KEY) || '100', 10)); // percent
 
-const generateImageForSelection = () => {
-  if (selectedText.value) {
-    emit('textSelected', selectedText.value);
-  }
-};
-
-const clearSelection = () => {
-  selectedText.value = '';
-  window.getSelection()?.removeAllRanges();
-};
-
 // Watch for CFI prop changes
 watch(
   () => props.currentCfi,
   (newCfi) => {
-    if (newCfi && rendition) {
+    if (
+      newCfi &&
+      rendition &&
+      typeof rendition.currentLocation === 'function' &&
+      rendition.currentLocation() &&
+      rendition.currentLocation().start &&
+      rendition.currentLocation().start.cfi !== newCfi
+    ) {
       rendition.display(newCfi);
     }
   }
@@ -74,8 +72,6 @@ watch(
   async (newVal) => {
     if (newVal && (window as any).lastOpenedBookArrayBuffer) {
       try {
-        console.log('Initializing EPUB with metadata:', newVal);
-        
         // Clean up any existing book/rendition
         if (rendition) {
           rendition.destroy();
@@ -89,7 +85,6 @@ watch(
         
         // Wait for book to be ready before proceeding
         await epubBook.ready;
-        console.log('EPUB book ready');
         
         // Initialize rendition
         rendition = epubBook.renderTo(epubContainer.value, {
@@ -101,15 +96,13 @@ watch(
         
         // Generate locations
         try {
-          await epubBook.locations.generate(1000); // 1000 chars per page
-          console.log('Locations generated');
+          await epubBook.locations.generate(2000); // 2000 chars per page
           totalPages.value = epubBook.locations.length();
         } catch (error) {
-          console.error('Error generating locations:', error);
           // Continue even if locations fail - not critical
         }
         
-        // Always display the correct CFI after initializing rendition
+        // Only display the correct CFI ONCE after initializing rendition and locations
         if (props.currentCfi) {
           await rendition.display(props.currentCfi);
         } else {
@@ -118,7 +111,7 @@ watch(
         emit('bookReady');
         
         // Set up event listeners
-        rendition.on('relocated', (location: any) => {
+        rendition.on('relocated', async (location: any) => {
           if (epubBook && epubBook.locations) {
             const total = epubBook.locations.length();
             const current = epubBook.locations.locationFromCfi(location.start.cfi) + 1;
@@ -129,17 +122,7 @@ watch(
         // Restore font size
         rendition.themes.fontSize(fontSize.value + '%');
         
-        // Always display the correct CFI after initializing rendition
-        if (props.currentCfi) {
-          await rendition.display(props.currentCfi);
-        } else {
-          await rendition.display();
-        }
-        
-        console.log('Book displayed successfully');
-        
       } catch (error) {
-        console.error('Error initializing book:', error);
         // Notify parent of error
         emit('bookReady'); // Still emit to clear loading state
       }
@@ -158,49 +141,52 @@ watch(
   { immediate: true }
 );
 
-let currentCfi = ref('');
-let currentPage = ref(1);
-
-// Emit real page/total/CFI on every navigation
-watch(
-  () => rendition,
-  (r) => {
-    if (!r) return;
-    r.on('relocated', (location: any) => {
-      if (epubBook && epubBook.locations) {
-        const total = epubBook.locations.length();
-        const current = epubBook.locations.locationFromCfi(location.start.cfi) + 1;
-        currentCfi.value = location.start.cfi;
-        currentPage.value = current;
-        emit('pageChange', { page: current, total, cfi: location.start.cfi });
-      }
-    });
-  },
-  { immediate: true }
-);
-
 onMounted(() => {
-  console.log('BookViewer mounted');
-  console.log('epubContainer:', epubContainer.value);
-  console.log('metadata:', props.metadata);
-  console.log('window.lastOpenedBookArrayBuffer:', typeof (window as any).lastOpenedBookArrayBuffer, (window as any).lastOpenedBookArrayBuffer ? 'set' : 'not set');
-  window.addEventListener('keydown', handleKeyboard, true);
   const lastPart = props.currentCfi ? props.currentCfi.split(':').pop() ?? '' : '';
   pageInputValue.value = lastPart ? parseInt(lastPart, 10) : 1;
   // Restore font size from localStorage
   const saved = localStorage.getItem(FONT_SIZE_KEY);
   if (saved) fontSize.value = parseInt(saved, 10);
+
+  // Add selection listener to EPUB content
+  const addSelectionListener = () => {
+    if (!rendition) return;
+    rendition.on('rendered', (_section: any) => {
+      const iframe = (epubContainer.value as HTMLElement | null)?.querySelector('iframe');
+      if (iframe && iframe.contentWindow) {
+        const doc = iframe.contentWindow.document;
+        let lastEmittedSelection = '';
+        // Only emit on mouseup, not on every selectionchange
+        const handleMouseUp = () => {
+          const sel = doc.getSelection();
+          const text = sel ? sel.toString().trim() : '';
+          if (text.length > 0 && text !== lastEmittedSelection) {
+            lastEmittedSelection = text;
+            selectedText.value = text;
+            emit('textSelected', text);
+          }
+        };
+        doc.addEventListener('mouseup', handleMouseUp);
+      }
+    });
+  };
+  setTimeout(addSelectionListener, 1000);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyboard, true);
+  // Remove from onUnmounted
+  // window.removeEventListener('keydown', handleKeyboard, true);
 });
 
 function nextPage() {
-  if (rendition) rendition.next();
+  if (rendition) {
+    rendition.next();
+  }
 }
 function previousPage() {
-  if (rendition) rendition.prev();
+  if (rendition) {
+    rendition.prev();
+  }
 }
 
 function getCurrentCfi() {
@@ -213,16 +199,44 @@ function goToCfi(cfi: string) {
   if (rendition && cfi) rendition.display(cfi);
 }
 
-function getCurrentPageText() {
-  if (!rendition) return '';
-  const contents = rendition.getContents();
-  if (!contents || !contents.length) return '';
-  // Get the text from the first (and usually only) iframe
-  return contents[0].document.body.innerText || '';
-}
+async function getCurrentPageText() {
+  if (!rendition || !epubBook || !epubBook.locations) return '';
+  const loc = rendition.currentLocation?.();
+  
+  if (!loc || !loc.start || !loc.start.cfi) return '';
+  let startCfi = loc.start.cfi;
 
-function handleKeyboard() {
-  // ... existing code or leave empty if not used
+  // Try to get the current page index in the locations array
+  let pageIndex = null;
+  //if (loc.start.index !== undefined) {
+   // pageIndex = loc.start.index;
+  //  
+ // } else {
+    // Fallback: use pageFromCfi (1-based)
+    pageIndex = epubBook.locations.locationFromCfi(startCfi);
+  //}
+
+  // Use cfiFromLocation for more accurate CFI calculation
+  if (pageIndex !== null && pageIndex >= 0) {
+    startCfi = epubBook.locations.cfiFromLocation(pageIndex);
+  }
+
+  if (!startCfi) return '';
+
+  try {
+    let range = epubBook.getRange(startCfi);
+    if (range instanceof Promise) {
+      range = await range;
+    }
+    const text = range?.toString() || '';
+    //console.log(pageIndex + ' ' + text)
+    return text.replace(/\s+/g, ' ').trim();
+  } catch (e) {
+    // fallback: get all visible text as before
+    const contents = rendition.getContents();
+    if (!contents || !contents.length) return '';
+    return contents[0].document.body.innerText || '';
+  }
 }
 
 defineExpose({ nextPage, previousPage, getCurrentCfi, goToCfi, getCurrentPageText });

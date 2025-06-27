@@ -6,7 +6,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { text, imagePrompt } = req.body || {};
+  const { text, imagePrompt, style } = req.body || {};
 
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const apiKey = process.env.CLOUDFLARE_API_TOKEN;
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           input_text: text.slice(0, 3000),
           //max_length: 150,
-          min_length: 50
+          min_length: 150
         })
       });
       const data = await cfRes.json();
@@ -40,6 +40,7 @@ export default async function handler(req, res) {
       if (!imagePrompt) {
         return res.status(400).json({ error: 'Image prompt must not be empty.' });
       }
+      const artStyle = style || 'Futuristic';
       const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/stabilityai/stable-diffusion-xl-base-1.0`;
       const cfRes = await fetch(apiUrl, {
         method: 'POST',
@@ -48,11 +49,11 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          prompt: `A beautifully detailed illustration of ${imagePrompt}. Style is realistic, vibrant color, professional quality.`,
+          prompt: `${artStyle} artwork of: ${imagePrompt}, highly detailed, digital art, vibrant colors, professional quality`,
           num_steps: 20,
           guidance: 7.5,
-          width: 512,
-          height: 512
+          //width: 512,
+          //height: 512
         })
       });
       const arrayBuffer = await cfRes.arrayBuffer();

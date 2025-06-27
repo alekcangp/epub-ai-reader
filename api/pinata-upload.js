@@ -4,6 +4,7 @@ import { IncomingForm } from 'formidable';
 import fs from 'fs';
 import FormData from 'form-data';
 import fetch from 'node-fetch';
+import { validateMetadataJSON } from '@zoralabs/coins-sdk';
 
 export const config = {
   api: {
@@ -69,8 +70,20 @@ export default async function handler(req, res) {
         throw new Error('Pinata file upload failed: ' + JSON.stringify(fileJson));
       }
       const imageIpfsUrl = `https://gateway.pinata.cloud/ipfs/${fileJson.IpfsHash}`;
+      
       // 2. Create metadata with image URL
       const metadataWithImage = { ...metadata, image: `ipfs://${fileJson.IpfsHash}` };
+      
+      // Validate metadata
+      console.log('Metadata with image:', metadataWithImage);
+      // Validate metadata before uploading to Pinata
+      const validation = validateMetadataJSON(metadataWithImage);
+      console.log('Metadata validation:', validation);
+      if (!validation) {
+        console.error('Metadata validation failed:', validation.errors);
+        return res.status(400).json({ error: 'Metadata validation failed: ' + (validation.errors?.[0]?.message || 'Invalid metadata') });
+      }
+
       // 3. Upload metadata JSON to Pinata
       const metaRes = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
         method: 'POST',

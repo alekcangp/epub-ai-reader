@@ -1,4 +1,4 @@
-import { createCoin, type ValidMetadataURI, DeployCurrency, setApiKey, validateMetadataURIContent } from '@zoralabs/coins-sdk';
+import { createCoin, type ValidMetadataURI, DeployCurrency, setApiKey } from '@zoralabs/coins-sdk';
 import type { MintingState } from '../types/wallet';
 import walletService from './walletService';
 import type { Address } from 'viem';
@@ -41,8 +41,8 @@ class ZoraService {
       if (!address) throw new Error('No wallet address found');
 
       // Validate metadata URI before deploying
-      this.mintingState.statusMessage = 'Validating metadata...';
-      await validateMetadataURIContent(metadataIpfsUrl as ValidMetadataURI);
+      ///this.mintingState.statusMessage = 'Validating metadata...';
+      //await validateMetadataURIContent(metadataIpfsUrl as ValidMetadataURI);
 
       // Prepare coin parameters
       const coinParams = {

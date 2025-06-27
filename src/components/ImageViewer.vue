@@ -1,7 +1,13 @@
 <template>
   <div class="image-viewer">
+    <div class="image-style-select">
+      <label for="art-style">Art Style:</label>
+      <select id="art-style" :value="props.selectedArtStyle" @change="handleArtStyleChange">
+        <option v-for="style in ArtStyles" :key="style" :value="style">{{ style }}</option>
+      </select>
+    </div>
     <div class="image-container">
-      <div v-if="isGenerating" class="loading-state">
+      <div v-if="props.isGenerating" class="loading-state">
         <div class="ai-spinner">
           <div class="spinner-ring"></div>
           <div class="spinner-ring"></div>
@@ -13,12 +19,11 @@
           <div class="progress-fill" :style="{ width: `${progress}%` }"></div>
         </div>
       </div>
-      
-      <div v-else-if="imageUrl" class="image-display">
+      <div v-else-if="props.imageUrl && props.imageUrl.length > 0" class="image-display">
         <div class="image-hover-container">
-          <img :src="imageUrl" alt="AI Generated Illustration" />
+          <img :src="props.imageUrl" alt="AI Generated Illustration" />
           <div class="image-hover-buttons">
-            <button @click="downloadImage" :disabled="!imageUrl" class="action-btn" title="Download image">
+            <button @click="downloadImage" :disabled="!props.imageUrl" class="action-btn" title="Download image">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="7,10 12,15 17,10"/>
@@ -26,7 +31,7 @@
               </svg>
               Download
             </button>
-            <button @click="openMintModal" :disabled="!imageUrl" class="mint-btn" title="Mint as NFT">
+            <button @click="openMintModal" :disabled="!props.imageUrl" class="mint-btn" title="Mint as NFT">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10"/>
                 <polyline points="10,6 10,12 16,12"/>
@@ -42,7 +47,17 @@
           </div>
         </div>
       </div>
-      
+      <div v-else-if="props.wasCanceled" class="empty-state">
+        <div class="empty-icon">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <circle cx="9" cy="9" r="2"/>
+            <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+          </svg>
+        </div>
+        <h4>Illustration canceled</h4>
+        <p>You canceled the previous generation. Turn the page or select text to generate a new illustration.</p>
+      </div>
       <div v-else class="empty-state">
         <div class="empty-icon">
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -70,25 +85,26 @@
           </button>
         </div>
         <div class="mint-modal-body">
-          <div v-if="!walletState.isConnected" class="wallet-connect">
-            <button 
-              @click="connectWallet" 
-              :disabled="walletState.isConnecting"
-              class="connect-btn"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
-                <path d="M3 5v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z"/>
-                <polyline points="9,22 9,12 15,12 15,22"/>
-              </svg>
-              {{ walletState.isConnecting ? 'Connecting...' : 'Connect Wallet' }}
-            </button>
-          </div>
+      <div v-if="!walletState.isConnected" class="wallet-connect">
+        <button 
+          @click="connectWallet" 
+          :disabled="walletState.isConnecting"
+          class="connect-btn"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+            <path d="M3 5v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z"/>
+            <polyline points="9,22 9,12 15,12 15,22"/>
+          </svg>
+          {{ walletState.isConnecting ? 'Connecting...' : 'Connect Wallet' }}
+        </button>
+      </div>
           <div v-else>
             <div v-if="walletState.chainId !== 84532" class="network-warning">
               <span class="network-warning-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff4136" stroke-width="2" style="vertical-align: middle; margin-right: 6px;"><circle cx="12" cy="12" r="10" fill="#fff6f6" stroke="#ff4136" stroke-width="2"/><line x1="12" y1="8" x2="12" y2="13" stroke="#ff4136" stroke-width="2"/><circle cx="12" cy="16" r="1" fill="#ff4136"/></svg>
-                <img src="/metamask-fox-dev.svg" alt="MetaMask" style="height: 18px; vertical-align: middle; margin-right: 4px; margin-left: 2px;" />
+               <!-- <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff4136" stroke-width="2" style="vertical-align: middle; margin-right: 2px;"><circle cx="12" cy="12" r="10" fill="#fff6f6" stroke="#ff4136" stroke-width="2"/><line x1="12" y1="8" x2="12" y2="13" stroke="#ff4136" stroke-width="2"/><circle cx="12" cy="16" r="1" fill="#ff4136"/></svg> 
+               -->
+                <img src="/metamask-fox-dev.svg" alt="MetaMask" style="height: 18px; vertical-align: middle; margin-right: 4px; margin-left: 4px;" />
               </span>
               <span>
                 Please switch your wallet to <b>Base</b>.
@@ -107,49 +123,44 @@
                 <label>Description</label>
                 <textarea v-model="coinDescription" rows="3" placeholder="Description (optional)" />
               </div>
-              <button
+        <button 
                 type="submit"
                 class="mint-btn main-mint-btn"
                 :disabled="walletState.chainId !== 84532 || isUploading || mintingState.isMinting || !coinName || mintingState.statusMessage === 'Waiting for MetaMask...'"
               >
                 <span v-if="isUploading">Uploading to IPFS...</span>
-                <span v-else-if="mintingState.statusMessage && mintingState.statusMessage !== 'Transaction was cancelled by the user.'">{{ mintingState.statusMessage }}</span>
+                <span v-else-if="mintingState.statusMessage && mintingState.statusMessage !== 'Transaction was cancelled by the user.' && !mintingState.txHash">{{ mintingState.statusMessage }}</span>
                 <span v-else>Mint</span>
-              </button>
+        </button>
             </form>
-            <div v-if="mintingState.txHash" class="mint-success">
-              <div class="mint-success-content">
-                <div class="mint-success-icon-row">
-                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#2ecc40" stroke-width="2.5">
-                    <circle cx="12" cy="12" r="10" stroke="#2ecc40" stroke-width="2.5" fill="#eafaf1"/>
-                    <polyline points="16,8 11,15 8,12" stroke="#2ecc40" stroke-width="2.5" fill="none"/>
-                  </svg>
-                  <span class="mint-success-title">Zora Coin Minted Successfully!</span>
-                </div>
-                <div v-if="mintingState.coinAddress" class="zora-btn-center-wrap">
-                  <a
-                    :href="`https://testnet.zora.co/collect/base-sepolia:${mintingState.coinAddress}`"
-                    target="_blank"
-                    rel="noopener"
-                    class="zora-view-btn"
-                    aria-label="View on Zora"
-                  >
-                    View on Zora
-                  </a>
-                </div>
-              </div>
-            </div>
-            <div v-if="mintingState.error" class="mint-error">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="15" y1="9" x2="9" y2="15"/>
-                <line x1="9" y1="9" x2="15" y2="15"/>
-              </svg>
-              {{ mintingState.error }}
+        <div v-if="mintingState.txHash" class="mint-success">
+          <div class="mint-success-content">
+            <div v-if="mintingState.coinAddress" class="zora-btn-center-wrap">
+              <a
+                :href="`https://testnet.zora.co/collect/base-sepolia:${mintingState.coinAddress}`"
+                target="_blank"
+                rel="noopener"
+                class="zora-view-btn user-friendly-zora-btn"
+                aria-label="View your coin on Zora"
+              >
+                <img src="https://zora.co/favicon.ico" alt="Zora" style="height: 26px; margin-right: 10px; vertical-align: middle;" />
+                <span>View Your Coin on Zora</span>
+              </a>
+              <div class="zora-success-desc">You can now view, share, or trade your new Zora Coin on the Zora platform.</div>
             </div>
           </div>
         </div>
+        <div v-if="mintingState.error" class="mint-error">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="15" y1="9" x2="9" y2="15"/>
+            <line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+          {{ mintingState.error }}
+        </div>
       </div>
+    </div>
+  </div>
     </div>
   </Teleport>
 </template>
@@ -166,6 +177,8 @@ interface Props {
   isGenerating?: boolean;
   selectedText?: string;
   bookTitle?: string;
+  selectedArtStyle?: string;
+  wasCanceled?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -173,11 +186,13 @@ const props = withDefaults(defineProps<Props>(), {
   summary: '',
   isGenerating: false,
   selectedText: '',
-  bookTitle: 'Unknown Book'
+  bookTitle: 'Unknown Book',
+  selectedArtStyle: 'Futuristic',
+  wasCanceled: false
 });
 
 const emit = defineEmits<{
-  regenerate: [];
+  regenerate: [style: string];
   download: [url: string];
 }>();
 
@@ -192,6 +207,16 @@ const coinName = ref('');
 const coinSymbol = ref('AIBOOK');
 const coinDescription = ref('');
 const isUploading = ref(false);
+
+// Art style state
+const ArtStyles = [
+  'Cyberpunk',
+  'Fantasy',
+  'Futuristic',
+  'Abstract',
+  'Retro Wave',
+  'Sci-Fi'
+] as const;
 
 // Helper to convert data URL to Blob
 function dataURLtoBlob(dataurl: string) {
@@ -232,6 +257,9 @@ const openMintModal = () => {
   coinName.value = props.bookTitle || 'AI Book Coin';
   coinSymbol.value = 'AIBOOK';
   coinDescription.value = props.summary || '';
+  // Fully reset minting state so previous success does not persist
+  zoraService.resetMintingState();
+  mintingState.value = zoraService.getMintingState();
   showMintModal.value = true;
 };
 
@@ -341,6 +369,14 @@ watch(
     }
   }
 );
+
+// Remove watcher on selectedArtStyle and add a handler for dropdown change
+function handleArtStyleChange(event: Event) {
+  const val = (event.target as HTMLSelectElement).value;
+  if (val && val !== props.selectedArtStyle) {
+    emit('regenerate', val);
+  }
+}
 
 onMounted(() => {
   walletState.value = walletService.getState();
@@ -550,7 +586,7 @@ onUnmounted(() => {
   color: #007AFF;
   border: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.13);
-  transition: background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.12s;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.12s, opacity 0.18s;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -560,13 +596,17 @@ onUnmounted(() => {
   width: 160px;
   min-width: 160px;
   min-height: 48px;
+  opacity: 0.7;
 }
 .image-hover-buttons .action-btn:hover,
-.image-hover-buttons .mint-btn:hover {
+.image-hover-buttons .mint-btn:hover,
+.image-hover-buttons .action-btn:focus,
+.image-hover-buttons .mint-btn:focus {
   background: #e6eeff;
   color: #0056CC;
   box-shadow: 0 4px 16px rgba(0,122,255,0.10);
   transform: translateY(-2px) scale(1.05);
+  opacity: 1;
 }
 .image-hover-buttons .action-btn:active,
 .image-hover-buttons .mint-btn:active {
@@ -723,45 +763,22 @@ onUnmounted(() => {
 }
 
 .mint-success {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(120deg, #eafaf1 0%, #d4fbe7 100%);
-  color: #219150;
-  border-radius: 18px;
-  box-shadow: 0 4px 24px 0 rgba(52,199,89,0.10);
-  padding: 38px 18px 32px 18px;
-  margin-top: 28px;
-  width: 100%;
-  max-width: 420px;
-  margin-left: auto;
-  margin-right: auto;
+  padding: 10px 6px 8px 6px;
+  margin-top: 8px;
+  min-width: 0;
+  max-width: 320px;
 }
-
 .mint-success-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  gap: 24px;
+  gap: 6px;
 }
-
-.mint-success-icon-row {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  margin-bottom: 10px;
-  justify-content: center;
+.zora-btn-center-wrap {
+  min-height: 80px;
 }
-
-.mint-success-title {
-  font-weight: 700;
-  font-size: 1.25em;
-  color: #219150;
-  letter-spacing: 0.01em;
+.zora-success-desc {
+  margin-top: 6px;
+  font-size: 0.98em;
+  text-align: center;
 }
-
 .mint-error {
   display: flex;
   align-items: center;
@@ -904,41 +921,26 @@ onUnmounted(() => {
   align-items: center;
   margin-right: 6px;
 }
-.zora-btn-center-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 180px;
+.user-friendly-zora-btn {
+  font-size: 1.22em !important;
+  padding: 20px 0 !important;
+  border-radius: 26px !important;
+  background: linear-gradient(100deg, #2563eb 0%, #10b981 100%) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 32px 0 rgba(37,99,235,0.13), 0 2px 12px 0 rgba(16,185,129,0.13) !important;
+  font-weight: 700 !important;
+  margin-top: 10px !important;
+  margin-bottom: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  transition: background 0.18s, color 0.18s, transform 0.13s, box-shadow 0.18s !important;
 }
-.zora-view-btn {
-  background: linear-gradient(100deg, #34d399 0%, #10b981 100%);
-  color: #fff;
-  border: none;
-  border-radius: 22px;
-  padding: 22px 0;
-  font-size: 1.18em;
-  font-weight: 700;
-  text-decoration: none;
-  box-shadow: 0 6px 32px 0 rgba(52,199,89,0.13), 0 1.5px 8px 0 rgba(16,185,129,0.10);
-  transition: background 0.18s, color 0.18s, transform 0.13s, box-shadow 0.18s;
-  margin: 0 auto;
-  width: 100%;
-  max-width: 340px;
-  cursor: pointer;
-  outline: none;
-  justify-content: center;
-  align-items: center;
-  display: flex;
-  letter-spacing: 0.01em;
-  position: relative;
-  overflow: hidden;
-}
-.zora-view-btn:hover, .zora-view-btn:focus {
-  background: linear-gradient(100deg, #059669 0%, #047857 100%);
-  color: #fff;
-  transform: translateY(-2px) scale(1.04);
-  box-shadow: 0 10px 36px 0 rgba(52,199,89,0.18), 0 2px 12px 0 rgba(16,185,129,0.13);
+.user-friendly-zora-btn:hover, .user-friendly-zora-btn:focus {
+  background: linear-gradient(100deg, #059669 0%, #2563eb 100%) !important;
+  color: #fff !important;
+  transform: translateY(-2px) scale(1.04) !important;
+  box-shadow: 0 12px 36px 0 rgba(37,99,235,0.18), 0 2px 12px 0 rgba(16,185,129,0.18) !important;
 }
 </style>
