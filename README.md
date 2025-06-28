@@ -8,7 +8,7 @@ A modern web application for reading EPUB books, generating AI illustrations, an
 - **EPUB Reader**: Upload and read EPUB books with bookmarks, navigation, and font controls.
 - **AI Image Generation**: Summarize the current page or selected text and generate illustrations using Cloudflare Workers AI.
 - **Art Style Selection**: Choose from multiple AI art styles (Cyberpunk, Fantasy, Futuristic, Abstract, Retro Wave, Sci-Fi) — your choice is persistent and always used for new images.
-- **Zora Coin Minting**: Mint a Zora ERC-20 coin for your book/illustration.
+- **Zora Coin Minting**: Automate the creation and minting of a zora erc-20 token for your book's text and illustrations.
 
 ## AI Models Used
 
