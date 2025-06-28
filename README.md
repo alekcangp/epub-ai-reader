@@ -19,7 +19,7 @@ A modern web application for reading EPUB books, generating AI illustrations, an
 
 ## Screenshot
 
-![EPUB AI Reader Screenshot](screenshot.png)
+![EPUB AI Reader Screenshot](screenshort.png)
 
 
 ## Deployment
