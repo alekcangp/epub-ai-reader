@@ -1,6 +1,6 @@
 # EPUB AI Reader
 
-[Live Demo](https://ai-epub-reader.vercel.app/)
+[Live Demo](https://epub-ai-reader-multi.vercel.app/)
 
 A modern web application for reading EPUB books, generating AI illustrations, and minting Zora coins (ERC-20) with seamless blockchain and IPFS integration.
 
@@ -13,9 +13,11 @@ A modern web application for reading EPUB books, generating AI illustrations, an
 ## AI Models Used
 
 - **Image Generation:** [Stable Diffusion XL](https://developers.cloudflare.com/workers-ai/models/image-generation/stable-diffusion-xl/) (via Cloudflare Workers AI)
-- **Text Summarization:** [Facebook BART](https://developers.cloudflare.com/workers-ai/models/bart-large-cnn/) (via Cloudflare Workers AI)
+- **Text Summarization:**
+  - **Primary:** [AI Summary Agent](https://ai.io.net/ai/agents) (multilanguages)
+  - **Fallback:** [Facebook BART](https://developers.cloudflare.com/workers-ai/models/bart-large-cnn/) (via Cloudflare Workers AI)
 
-> The app uses Cloudflare Workers AI endpoints for both image generation and text summarization. You can swap models or endpoints in the code as needed.
+> The app uses the AI agent API for text summarization by default. If that service is unavailable (limit), it automatically falls back to Cloudflare Workers AI (BART model). Image generation always uses Cloudflare Workers AI (Stable Diffusion XL). You can swap models or endpoints in the code as needed.
 
 ## Screenshot
 

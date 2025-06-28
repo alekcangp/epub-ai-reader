@@ -323,14 +323,15 @@ const generateImageForSelection = async (text: string, style?: string) => {
   wasGenerationCanceled.value = false;
   const myToken = ++currentGenerationToken;
   try {
-    // Use the selected text directly as the prompt
-    const prompt = text;
-    const imageUrl = await aiService.generateImage(prompt, style || selectedArtStyle.value, imageGenAbortController.signal);
+    // Summarize the selected text first
+    const summary = await aiService.summarizeText(text, imageGenAbortController.signal);
+    if (!summary || !summary.trim()) throw new Error('No summary generated');
+    const imageUrl = await aiService.generateImage(summary, style || selectedArtStyle.value, imageGenAbortController.signal);
     if (myToken !== currentGenerationToken) return; // Outdated
     currentGeneration.value = {
-      summary: prompt,
+      summary,
       imageUrl,
-      prompt,
+      prompt: summary,
       isLoading: false
     };
     wasGenerationCanceled.value = false;
@@ -340,7 +341,7 @@ const generateImageForSelection = async (text: string, style?: string) => {
       return;
     }
     wasGenerationCanceled.value = false;
-    console.error('Failed to generate image:', error);
+    console.error('Failed to summarize or generate image:', error);
   } finally {
     if (myToken === currentGenerationToken) isGeneratingImage.value = false;
   }
