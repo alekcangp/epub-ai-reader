@@ -802,7 +802,7 @@ onUnmounted(() => {
   min-width: 100vw;
 }
 .mint-modal-content {
-  background: white;
+  background: rgb(239,226,204);
   border-radius: 18px;
   padding: 0 0 32px 0;
   min-width: 360px;

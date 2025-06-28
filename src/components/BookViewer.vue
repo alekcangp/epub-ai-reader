@@ -50,6 +50,8 @@ const selectedText = ref('');
 const FONT_SIZE_KEY = 'epub-font-size';
 const fontSize = ref<number>(parseInt(localStorage.getItem(FONT_SIZE_KEY) || '100', 10)); // percent
 
+let pendingCfiCheck: { requested: string | null, triedFallback: boolean } | null = null;
+
 // Watch for CFI prop changes
 watch(
   () => props.currentCfi,
@@ -63,7 +65,7 @@ watch(
       rendition.currentLocation().start.cfi !== newCfi
     ) {
       rendition.display(newCfi);
-    }
+  }
   }
 );
 
@@ -105,9 +107,17 @@ watch(
         // Only display the correct CFI ONCE after initializing rendition and locations
         if (props.currentCfi) {
           await rendition.display(props.currentCfi);
+          pendingCfiCheck = { requested: props.currentCfi, triedFallback: false };
         } else {
           await rendition.display();
         }
+        // Extra robustness: if currentCfi exists after ready, display it again
+        setTimeout(() => {
+          if (props.currentCfi) {
+            rendition.display(props.currentCfi);
+            pendingCfiCheck = { requested: props.currentCfi, triedFallback: false };
+          }
+        }, 100);
         emit('bookReady');
         
         // Set up event listeners
@@ -116,6 +126,25 @@ watch(
             const total = epubBook.locations.length();
             const current = epubBook.locations.locationFromCfi(location.start.cfi) + 1;
             emit('pageChange', { page: current, total, cfi: location.start.cfi });
+            // Robust fallback for end-of-book/chapter
+            if (pendingCfiCheck && pendingCfiCheck.requested) {
+              const actual = location.start.cfi;
+              const requested = pendingCfiCheck.requested;
+              if (actual !== requested && !pendingCfiCheck.triedFallback) {
+                // If the requested CFI is at/near the end, jump to the last valid CFI
+                const lastCfi = epubBook.locations.cfiFromLocation(epubBook.locations.length() - 1);
+                if (requested >= lastCfi) {
+                  console.log('[BookViewer] Fallback: requested CFI at/near end, jumping to last valid CFI', lastCfi);
+                  pendingCfiCheck.triedFallback = true;
+                  await rendition.display(lastCfi);
+                } else {
+                  console.log('[BookViewer] CFI mismatch but not at end:', { requested, actual });
+                  pendingCfiCheck = null;
+                }
+              } else {
+                pendingCfiCheck = null;
+              }
+            }
           }
         });
         
@@ -136,7 +165,7 @@ watch(
   (newFontSize) => {
     if (rendition && newFontSize) {
       rendition.themes.fontSize(newFontSize + '%');
-    }
+  }
   },
   { immediate: true }
 );
@@ -167,6 +196,9 @@ onMounted(() => {
           }
         };
         doc.addEventListener('mouseup', handleMouseUp);
+        // Inject keydown listener for navigation
+        doc.removeEventListener('keydown', injectedNavKeydown, true); // Remove if already attached
+        doc.addEventListener('keydown', injectedNavKeydown, true);
       }
     });
   };
@@ -239,6 +271,19 @@ async function getCurrentPageText() {
   }
 }
 
+function injectedNavKeydown(event: KeyboardEvent) {
+  const tag = (event.target as HTMLElement)?.tagName;
+  const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || (event.target as HTMLElement)?.isContentEditable;
+  if (isInput) return;
+  if (event.key === 'ArrowLeft') {
+    previousPage();
+    event.preventDefault();
+  } else if (event.key === 'ArrowRight') {
+    nextPage();
+    event.preventDefault();
+  }
+}
+
 defineExpose({ nextPage, previousPage, getCurrentCfi, goToCfi, getCurrentPageText });
 </script>
 
@@ -248,7 +293,7 @@ defineExpose({ nextPage, previousPage, getCurrentCfi, goToCfi, getCurrentPageTex
   flex-direction: column;
   height: 100%;
   min-height: 800px;
-  background: #FAFAFA;
+  background: rgb(239,226,204);
   border-radius: 12px;
   overflow: hidden;
   padding: 0;
@@ -415,7 +460,7 @@ defineExpose({ nextPage, previousPage, getCurrentCfi, goToCfi, getCurrentPageTex
   min-height: 800px;
   height: 100%;
   overflow: hidden;
-  background: white;
+  background: rgb(239,226,204);
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }

@@ -44,8 +44,8 @@
                   :disabled="isLoadingBook"
                   title="Load Book"
                 >
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 5v14M5 12h14"/>
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 6.25278V19.2528M12 6.25278C10.8321 5.47686 9.24649 5 7.5 5C5.75351 5 4.16789 5.47686 3 6.25278V19.2528C4.16789 18.4769 5.75351 18 7.5 18C9.24649 18 10.8321 18.4769 12 19.2528M12 6.25278C13.1679 5.47686 14.7535 5 16.5 5C18.2465 5 19.8321 5.47686 21 6.25278V19.2528C19.8321 18.4769 18.2465 18 16.5 18C14.7535 18 13.1679 18.4769 12 19.2528" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                 </button>
                 <button 
@@ -54,7 +54,7 @@
                   :disabled="!bookLoaded || isLoadingBook"
                   title="Previous page (←)"
                 >
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M15 19l-7-7 7-7"/>
                   </svg>
                 </button>
@@ -67,7 +67,7 @@
                   :disabled="!bookLoaded || isLoadingBook"
                   title="Next page (→)"
                 >
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M9 5l7 7-7 7"/>
                   </svg>
                 </button>
@@ -186,6 +186,8 @@ const getLastCfiKey = () => `epub-last-cfi-${bookMetadata.value?.title || 'defau
 
 const selectedArtStyle = ref(localStorage.getItem('epub-art-style') || 'Futuristic');
 
+let pendingRestoreCfi: string | null = null;
+
 const handleFileUpload = async (file: File) => {
   try {
     // Reset state
@@ -219,15 +221,6 @@ const handleFileUpload = async (file: File) => {
     bookMetadata.value = metadata;
       console.log('EPUB metadata loaded:', metadata);
       
-      // Restore last position if available (before BookViewer reload)
-      const lastCfi = localStorage.getItem(getLastCfiKey());
-      if (lastCfi) {
-        console.log('Restoring last position:', lastCfi);
-        currentCfi.value = lastCfi;
-      } else {
-        currentCfi.value = null;
-      }
-
       // Store just the book name for reference
       localStorage.setItem('lastOpenedBookName', file.name);
       
@@ -287,7 +280,7 @@ function onFileInputChange(event: Event) {
     uploadError.value = 'Please select a valid EPUB file.';
   }
   if (fileInput.value) fileInput.value.value = '';
-}
+  }
 
 const handleTextSelection = async (text: string) => {
   // If a generation is in progress, show 'Illustration canceled' for 1 second before starting new generation
@@ -361,14 +354,18 @@ const downloadImage = (imageUrl: string) => {
 
 let imageGenDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-let isFirstPageChange = true;
-
 async function handlePageChange({ page, cfi }: { page: number; cfi: string }) {
-  console.log('[EpubReader] handlePageChange:', { page, cfi, currentCfi: currentCfi.value });
-  if (isFirstPageChange) {
-    isFirstPageChange = false;
-    // Don't update localStorage on the first event after load
-    return;
+  console.log('[EpubReader] handlePageChange:', { page, cfi, currentCfi: currentCfi.value, pendingRestoreCfi });
+  if (pendingRestoreCfi) {
+    if (cfi === pendingRestoreCfi) {
+      // Arrived at the restored CFI, now allow saving
+      pendingRestoreCfi = null;
+      console.log('[EpubReader] Arrived at restored CFI, will now save future CFIs');
+    } else {
+      // Not at the restored CFI yet, do not save
+      console.log('[EpubReader] Waiting for restored CFI, not saving');
+      return;
+    }
   }
   if (cfi) {
     currentCfi.value = cfi;
@@ -450,6 +447,9 @@ async function previousPage() {
 }
 
 function handleKeydown(event: KeyboardEvent) {
+  const tag = (event.target as HTMLElement)?.tagName;
+  const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || (event.target as HTMLElement)?.isContentEditable;
+  if (isInput) return;
   if (event.key === 'ArrowLeft') {
     previousPage();
   } else if (event.key === 'ArrowRight') {
@@ -497,20 +497,13 @@ onMounted(() => {
     while (n--) u8arr[n] = bstr.charCodeAt(n);
     const file = new File([u8arr], lastBookName, { type: mime });
     showUpload.value = false;
-    // Restore last CFI before BookViewer is created
-    const lastCfi = localStorage.getItem(getLastCfiKey());
-    if (lastCfi) {
-      currentCfi.value = lastCfi;
-    } else {
-      currentCfi.value = null;
-    }
     handleFileUpload(file);
   }
-  window.addEventListener('keydown', handleKeydown, true);
+  window.addEventListener('keydown', handleKeydown);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeydown, true);
+  window.removeEventListener('keydown', handleKeydown);
 });
 
 function loadBookmarks() {
@@ -586,7 +579,13 @@ const onBookReady = () => {
   console.log('Book ready event received');
   isLoadingBook.value = false;
   bookLoaded.value = true;
-  isFirstPageChange = true;
+  // Restore last CFI here
+  const lastCfi = localStorage.getItem(getLastCfiKey());
+  if (lastCfi) {
+    currentCfi.value = lastCfi;
+    pendingRestoreCfi = lastCfi;
+    console.log('[onBookReady] Restored lastCfi:', lastCfi);
+  }
 };
 
 // Watch and persist art style changes
@@ -600,7 +599,7 @@ watch(selectedArtStyle, (val) => {
   min-height: 100vh;
   width: 100%;
   max-width: 100%;
-  background: linear-gradient(135deg, #F8F9FA 0%, #E9ECEF 100%);
+  background: linear-gradient(135deg, rgb(239,226,204) 0%, rgb(239,226,204) 100%);
   position: relative;
   overflow-x: hidden;
   box-sizing: border-box;
@@ -638,7 +637,7 @@ watch(selectedArtStyle, (val) => {
 
 .reader-pane,
 .image-pane {
-  background: white;
+  background: rgb(239,226,204);
   border-radius: 16px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
   overflow: hidden;
@@ -811,7 +810,7 @@ watch(selectedArtStyle, (val) => {
   z-index: 1200;
 }
 .modal-content {
-  background: white;
+  background: rgb(239,226,204);
   border-radius: 16px;
   padding: 0 0 24px 0;
   min-width: 340px;
@@ -938,30 +937,31 @@ watch(selectedArtStyle, (val) => {
   justify-content: center;
   width: 44px;
   height: 44px;
-  border: none;
+  border: 1.5px solid var(--color-border);
   border-radius: 50%;
-  background: #f4f6fb;
-  color: #007AFF;
+  background: var(--color-card);
+  color: var(--color-primary);
   cursor: pointer;
-  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s, border-color 0.18s;
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 0;
   box-shadow: 0 2px 8px rgba(0,0,0,0.07);
   outline: none;
 }
 .nav-btn:hover:not(:disabled), .nav-btn:focus-visible {
-  background: #e6eeff;
-  color: #0056CC;
+  background: var(--color-secondary);
+  color: #fff;
+  border-color: var(--color-primary);
   box-shadow: 0 4px 16px rgba(0,122,255,0.10);
 }
 .nav-btn:active {
-  background: #dbeafe;
-  color: #003e99;
+  background: var(--color-accent);
+  color: var(--color-primary);
 }
 .nav-btn:disabled {
   color: #C7C7CC;
   cursor: not-allowed;
-  background: #f0f0f0;
+  background: var(--color-border);
   box-shadow: none;
 }
 .page-input-container {
@@ -1060,5 +1060,8 @@ watch(selectedArtStyle, (val) => {
 
 .load-book-btn {
   margin-right: 18px;
+}
+.load-book-btn > svg {
+  transform: scale(1.35);
 }
 </style>
