@@ -187,7 +187,6 @@ const getLastCfiKey = () => `epub-last-cfi-${bookMetadata.value?.title || 'defau
 const selectedArtStyle = ref(localStorage.getItem('epub-art-style') || 'Futuristic');
 
 let pendingRestoreCfi: string | null = null;
-let isNewBookUpload = false; // Track if this is a new book upload
 
 const handleFileUpload = async (file: File) => {
   try {
@@ -199,8 +198,6 @@ const handleFileUpload = async (file: File) => {
     uploadError.value = '';
     showUpload.value = false;
     bookLoaded.value = false;
-    isNewBookUpload = true; // Mark as new book upload
-    pendingRestoreCfi = null; // Clear any pending restore
 
     console.log('Starting file upload process');
 
@@ -358,15 +355,7 @@ const downloadImage = (imageUrl: string) => {
 let imageGenDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function handlePageChange({ page, cfi }: { page: number; cfi: string }) {
-  console.log('[EpubReader] handlePageChange:', { page, cfi, currentCfi: currentCfi.value, pendingRestoreCfi, isNewBookUpload });
-  
-  // If this is a new book upload, clear the pending restore and allow normal operation
-  if (isNewBookUpload) {
-    console.log('[EpubReader] New book upload detected, clearing restore state');
-    pendingRestoreCfi = null;
-    isNewBookUpload = false;
-  }
-  
+  console.log('[EpubReader] handlePageChange:', { page, cfi, currentCfi: currentCfi.value, pendingRestoreCfi });
   if (pendingRestoreCfi) {
     if (cfi === pendingRestoreCfi) {
       // Arrived at the restored CFI, now allow saving
@@ -378,7 +367,6 @@ async function handlePageChange({ page, cfi }: { page: number; cfi: string }) {
       return;
     }
   }
-  
   if (cfi) {
     currentCfi.value = cfi;
     localStorage.setItem(getLastCfiKey(), cfi);
@@ -509,7 +497,6 @@ onMounted(() => {
     while (n--) u8arr[n] = bstr.charCodeAt(n);
     const file = new File([u8arr], lastBookName, { type: mime });
     showUpload.value = false;
-    isNewBookUpload = false; // This is a reload, not a new upload
     handleFileUpload(file);
   }
   window.addEventListener('keydown', handleKeydown);
@@ -592,21 +579,12 @@ const onBookReady = () => {
   console.log('Book ready event received');
   isLoadingBook.value = false;
   bookLoaded.value = true;
-  
-  // Only restore last CFI if this is NOT a new book upload
-  if (!isNewBookUpload) {
-    const lastCfi = localStorage.getItem(getLastCfiKey());
-    if (lastCfi) {
-      currentCfi.value = lastCfi;
-      pendingRestoreCfi = lastCfi;
-      console.log('[onBookReady] Restored lastCfi:', lastCfi);
-    }
-  } else {
-    // For new book uploads, start fresh and generate image for first page
-    console.log('[onBookReady] New book upload, starting fresh');
-    setTimeout(() => {
-      generateImageForCurrentPage(selectedArtStyle.value);
-    }, 1000);
+  // Restore last CFI here
+  const lastCfi = localStorage.getItem(getLastCfiKey());
+  if (lastCfi) {
+    currentCfi.value = lastCfi;
+    pendingRestoreCfi = lastCfi;
+    console.log('[onBookReady] Restored lastCfi:', lastCfi);
   }
 };
 
