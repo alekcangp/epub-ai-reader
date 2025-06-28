@@ -14,9 +14,8 @@ export default async function handler(req, res) {
   if (!accountId || !apiKey) {
     return res.status(500).json({ error: 'Cloudflare credentials not set in environment variables' });
   }
-  try {
 
-    
+  try {
     if (text) {
       // Summarization
       const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/facebook/bart-large-cnn`;
@@ -35,13 +34,11 @@ export default async function handler(req, res) {
       const data = await cfRes.json();
       res.setHeader('Access-Control-Allow-Origin', '*');
       return res.status(cfRes.status).json(data);
-
-
     } else if (imagePrompt) {
       // Image generation
       //const trimmedPrompt = String(imagePrompt).slice(0, 256).trim();
       //if (!imagePrompt) {
-       // return res.status(400).json({ error: 'Image prompt must not be empty.' });
+      //  return res.status(400).json({ error: 'Image prompt must not be empty.' });
       //}
       const artStyle = style || 'Futuristic';
       const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/stabilityai/stable-diffusion-xl-base-1.0`;
