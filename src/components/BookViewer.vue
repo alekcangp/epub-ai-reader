@@ -98,7 +98,7 @@ watch(
         
         // Generate locations
         try {
-          await epubBook.locations.generate(2000); // 2000 chars per page
+          await epubBook.locations.generate(1024); // 1024 chars per page
           totalPages.value = epubBook.locations.length();
         } catch (error) {
           // Continue even if locations fail - not critical

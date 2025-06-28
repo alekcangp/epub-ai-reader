@@ -16,6 +16,33 @@ export default async function handler(req, res) {
   }
 
   try {
+
+/* 
+if (text) {
+  // Summarization
+  const apiUrl = `https://router.huggingface.co/hf-inference/models/csebuetnlp/mT5_multilingual_XLSum`;
+  const cfRes = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer `,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      inputs: text,//.slice(0, 3000),
+      //max_length: 150,
+      min_length: 150
+    })
+  });
+  const data = await cfRes.json();
+  console.log(data);
+  const datahf = {'result': {summary: data[0].summary_text}}
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  return res.status(cfRes.status).json(datahf);
+}
+
+*/
+
+
     if (text) {
       // Summarization
       const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/facebook/bart-large-cnn`;

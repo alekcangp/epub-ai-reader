@@ -183,10 +183,12 @@ const showBookmarks = ref(false);
 
 const getBookmarksKey = () => `epub-bookmarks-${bookMetadata.value?.title || 'default'}`;
 const getLastCfiKey = () => `epub-last-cfi-${bookMetadata.value?.title || 'default'}`;
+const getFontSizeKey = () => `epub-font-size-${bookMetadata.value?.title || 'default'}`;
 
 const selectedArtStyle = ref(localStorage.getItem('epub-art-style') || 'Futuristic');
 
 let pendingRestoreCfi: string | null = null;
+let cfiRestorationTimeout: ReturnType<typeof setTimeout> | null = null;
 
 const handleFileUpload = async (file: File) => {
   try {
@@ -198,6 +200,11 @@ const handleFileUpload = async (file: File) => {
     uploadError.value = '';
     showUpload.value = false;
     bookLoaded.value = false;
+    pendingRestoreCfi = null;
+    if (cfiRestorationTimeout) {
+      clearTimeout(cfiRestorationTimeout);
+      cfiRestorationTimeout = null;
+    }
 
     console.log('Starting file upload process');
 
@@ -223,6 +230,14 @@ const handleFileUpload = async (file: File) => {
       
       // Store just the book name for reference
       localStorage.setItem('lastOpenedBookName', file.name);
+      
+      // Load book-specific font size
+      const savedFontSize = localStorage.getItem(getFontSizeKey());
+      if (savedFontSize) {
+        fontSize.value = parseInt(savedFontSize, 10);
+      } else {
+        fontSize.value = 100; // Default font size for new books
+      }
       
       // Force BookViewer to reinitialize (after CFI is set)
       bookViewerKey.value++;
@@ -356,17 +371,23 @@ let imageGenDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function handlePageChange({ page, cfi }: { page: number; cfi: string }) {
   console.log('[EpubReader] handlePageChange:', { page, cfi, currentCfi: currentCfi.value, pendingRestoreCfi });
+  
   if (pendingRestoreCfi) {
     if (cfi === pendingRestoreCfi) {
       // Arrived at the restored CFI, now allow saving
-      pendingRestoreCfi = null;
       console.log('[EpubReader] Arrived at restored CFI, will now save future CFIs');
+      pendingRestoreCfi = null;
+      if (cfiRestorationTimeout) {
+        clearTimeout(cfiRestorationTimeout);
+        cfiRestorationTimeout = null;
+      }
     } else {
       // Not at the restored CFI yet, do not save
       console.log('[EpubReader] Waiting for restored CFI, not saving');
       return;
     }
   }
+  
   if (cfi) {
     currentCfi.value = cfi;
     localStorage.setItem(getLastCfiKey(), cfi);
@@ -429,6 +450,15 @@ async function nextPage() {
   const now = Date.now();
   if (now - lastPageTurnTime < PAGE_TURN_DELAY) return;
   lastPageTurnTime = now;
+  // If user turns page during CFI restoration, clear restoration state
+  if (pendingRestoreCfi) {
+    pendingRestoreCfi = null;
+    if (cfiRestorationTimeout) {
+      clearTimeout(cfiRestorationTimeout);
+      cfiRestorationTimeout = null;
+    }
+    console.log('[EpubReader] User turned page during CFI restoration, clearing pendingRestoreCfi');
+  }
   console.log('[EpubReader] nextPage called. currentCfi:', currentCfi.value);
   if (bookViewerRef.value?.nextPage) {
     await bookViewerRef.value.nextPage();
@@ -439,6 +469,15 @@ async function previousPage() {
   const now = Date.now();
   if (now - lastPageTurnTime < PAGE_TURN_DELAY) return;
   lastPageTurnTime = now;
+  // If user turns page during CFI restoration, clear restoration state
+  if (pendingRestoreCfi) {
+    pendingRestoreCfi = null;
+    if (cfiRestorationTimeout) {
+      clearTimeout(cfiRestorationTimeout);
+      cfiRestorationTimeout = null;
+    }
+    console.log('[EpubReader] User turned page during CFI restoration, clearing pendingRestoreCfi');
+  }
   console.log('[EpubReader] previousPage called. currentCfi:', currentCfi.value);
   if (bookViewerRef.value?.previousPage) {
     await bookViewerRef.value.previousPage();
@@ -459,19 +498,21 @@ function handleKeydown(event: KeyboardEvent) {
 
 // Navigation bar state and logic
 const pageInputValue = ref(1);
-const fontSize = ref(parseInt(localStorage.getItem('epub-font-size') || '100', 10));
+const fontSize = ref(100); // Will be loaded per-book
 const minFontSize = 80;
 const maxFontSize = 200;
+
 function increaseFontSize() {
   if (fontSize.value < maxFontSize) {
     fontSize.value += 10;
-    localStorage.setItem('epub-font-size', String(fontSize.value));
+    localStorage.setItem(getFontSizeKey(), String(fontSize.value));
   }
 }
+
 function decreaseFontSize() {
   if (fontSize.value > minFontSize) {
     fontSize.value -= 10;
-    localStorage.setItem('epub-font-size', String(fontSize.value));
+    localStorage.setItem(getFontSizeKey(), String(fontSize.value));
   }
 }
 
@@ -504,6 +545,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
+  if (cfiRestorationTimeout) {
+    clearTimeout(cfiRestorationTimeout);
+  }
 });
 
 function loadBookmarks() {
@@ -579,12 +623,26 @@ const onBookReady = () => {
   console.log('Book ready event received');
   isLoadingBook.value = false;
   bookLoaded.value = true;
-  // Restore last CFI here
+  
+  // Restore last CFI here with timeout fallback
   const lastCfi = localStorage.getItem(getLastCfiKey());
   if (lastCfi) {
     currentCfi.value = lastCfi;
     pendingRestoreCfi = lastCfi;
     console.log('[onBookReady] Restored lastCfi:', lastCfi);
+    
+    // Set a timeout to clear the restoration state if it takes too long
+    cfiRestorationTimeout = setTimeout(() => {
+      if (pendingRestoreCfi) {
+        console.log('[onBookReady] CFI restoration timeout - clearing pending state');
+        pendingRestoreCfi = null;
+        // Generate image for current page since restoration is complete
+        setTimeout(() => generateImageForCurrentPage(selectedArtStyle.value), 500);
+      }
+    }, 3000); // 3 second timeout for CFI restoration
+  } else {
+    // No CFI to restore, generate image for first page
+    setTimeout(() => generateImageForCurrentPage(selectedArtStyle.value), 1000);
   }
 };
 
