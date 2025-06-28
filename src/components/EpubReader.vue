@@ -317,7 +317,7 @@ const generateImageForSelection = async (text: string, style?: string) => {
   try {
     // Use the selected text directly as the prompt
     const prompt = text;
-    const imageUrl = await aiService.generateImage(prompt, style || 'Futuristic', imageGenAbortController.signal);
+    const imageUrl = await aiService.generateImage(prompt, style || selectedArtStyle.value, imageGenAbortController.signal);
     if (myToken !== currentGenerationToken) return; // Outdated
     currentGeneration.value = {
       summary: prompt,
@@ -344,9 +344,9 @@ const regenerateCurrentImageWithStyle = async (style?: string) => {
   }
   const content = selectedText.value;
   if (content) {
-    await generateImageForSelection(content, style);
+    await generateImageForSelection(content, style || selectedArtStyle.value);
   } else {
-    await generateImageForCurrentPage(style);
+    await generateImageForCurrentPage(style || selectedArtStyle.value);
   }
 };
 
@@ -377,7 +377,7 @@ async function handlePageChange({ page, cfi }: { page: number; cfi: string }) {
     // Debounce image generation here
     if (imageGenDebounceTimer) clearTimeout(imageGenDebounceTimer);
     imageGenDebounceTimer = setTimeout(() => {
-      generateImageForCurrentPage();
+      generateImageForCurrentPage(selectedArtStyle.value);
     }, 500); // 500ms debounce
   } else {
     // Only update page number if CFI didn't change
@@ -401,7 +401,7 @@ async function generateImageForCurrentPage(style?: string) {
     try {
       // Summarize the page text
       const summary = await aiService.summarizeText(text, imageGenAbortController.signal);
-      const imageUrl = await aiService.generateImage(summary, style || 'Futuristic', imageGenAbortController.signal);
+      const imageUrl = await aiService.generateImage(summary, style || selectedArtStyle.value, imageGenAbortController.signal);
       if (myToken !== currentGenerationToken) return;
       currentGeneration.value = {
         summary,
@@ -550,6 +550,7 @@ function toggleBookmark() {
 function goToBookmark(cfi: string) {
   bookViewerRef.value?.goToCfi?.(cfi);
   showBookmarks.value = false;
+  setTimeout(() => generateImageForCurrentPage(selectedArtStyle.value), 0);
 }
 
 function removeBookmark(cfi: string) {

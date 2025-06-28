@@ -1,45 +1,36 @@
 # EPUB AI Reader
 
-A modern Vue 3 + Vite application for reading EPUB books, generating AI illustrations, and minting Zora coins (ERC20) with seamless blockchain and IPFS integration.
+[Live Demo](https://ai-epub-reader.vercel.app/)
+
+A modern web application for reading EPUB books, generating AI illustrations, and minting Zora coins (ERC-20) with seamless blockchain and IPFS integration.
 
 ## Features
 - **EPUB Reader**: Upload and read EPUB books with bookmarks, navigation, and font controls.
-- **AI Image Generation**: Summarize current page and generate illustrations using Cloudflare Workers AI.
-- **Zora Coin Minting**: Mint a Zora ERC20 coin for your book/illustration, with MetaMask and Base Sepolia support.
-- **IPFS Integration**: Upload images and metadata to IPFS via Pinata.
-- **MetaMask Wallet**: Connect, switch networks, and mint directly from your browser.
-- **Modern UI/UX**: Touch-friendly, accessible, and beautiful interface.
+- **AI Image Generation**: Summarize the current page or selected text and generate illustrations using Cloudflare Workers AI.
+- **Art Style Selection**: Choose from multiple AI art styles (Cyberpunk, Fantasy, Futuristic, Abstract, Retro Wave, Sci-Fi) — your choice is persistent and always used for new images.
+- **Zora Coin Minting**: Mint a Zora ERC-20 coin for your book/illustration.
 
-## Setup
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-2. **Environment variables:**
-   Set these in your Vercel dashboard or a local `.env` file:
-   - `CLOUDFLARE_ACCOUNT_ID` (Cloudflare AI)
-   - `CLOUDFLARE_API_TOKEN` (Cloudflare AI)
-   - `PINATA_API_KEY` (Pinata IPFS)
-   - `PINATA_API_SECRET` (Pinata IPFS)
+## AI Models Used
 
-3. **Run locally:**
-   ```bash
-   npm run dev
-   ```
+- **Image Generation:** [Stable Diffusion XL](https://developers.cloudflare.com/workers-ai/models/image-generation/stable-diffusion-xl/) (via Cloudflare Workers AI)
+- **Text Summarization:** [Facebook BART](https://developers.cloudflare.com/workers-ai/models/bart-large-cnn/) (via Cloudflare Workers AI)
 
-4. **Build for production:**
-   ```bash
-   npm run build
-   ```
+> The app uses Cloudflare Workers AI endpoints for both image generation and text summarization. You can swap models or endpoints in the code as needed.
+
+## Screenshot
+
+![EPUB AI Reader Screenshot](screenshot.png)
+
 
 ## Deployment
-- Deploy to Vercel for best results (supports serverless API routes for AI and IPFS integration).
-- Ensure all environment variables are set in the Vercel dashboard (case-sensitive).
 
-## Project Structure
-- `src/` — Main Vue app (components, services, types)
-- `api/` — Vercel serverless functions for Cloudflare AI and Pinata
-- `public/` — Static assets (MetaMask icon, etc.)
+- Click the button below to deploy your own instance to Vercel with one click:
+
+  [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/import/project?template=https://github.com/alekcangp/epub-ai-reader)
+
+- Ensure all environment variables are set in the Vercel dashboard (case-sensitive). See `.env.example` for required variables.
+
 
 ## License
+
 MIT

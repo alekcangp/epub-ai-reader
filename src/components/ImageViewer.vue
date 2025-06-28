@@ -1,7 +1,7 @@
 <template>
   <div class="image-viewer">
     <div class="image-style-select">
-      <label for="art-style">Art Style:</label>
+      <label for="art-style">Art Style: </label>
       <select id="art-style" :value="props.selectedArtStyle" @change="handleArtStyleChange">
         <option v-for="style in ArtStyles" :key="style" :value="style">{{ style }}</option>
       </select>
