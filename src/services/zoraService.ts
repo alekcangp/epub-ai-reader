@@ -35,8 +35,10 @@ class ZoraService {
       // Ensure wallet is connected and on Base
       const client = walletService.getClient();
       if (!client) throw new Error('Wallet not connected');
-      await walletService.switchToBase();
-
+      const chainId = walletService.getState().chainId;
+      if (chainId !== 84532 && chainId !== 8453) {
+        throw new Error('Please switch your wallet to Base Mainnet or Base Sepolia to mint.');
+      }
       const address = walletService.getState().address;
       if (!address) throw new Error('No wallet address found');
 
@@ -50,7 +52,7 @@ class ZoraService {
         symbol: bookSymbol,
         uri: metadataIpfsUrl as ValidMetadataURI,
         payoutRecipient: address as Address,
-        chainId: 84532, // Base Sepolia testnet chain ID
+        chainId, // Use the current chainId
         currency: DeployCurrency.ETH
       };
 

@@ -178,7 +178,7 @@ const aiService = new CloudflareAIService();
 // AbortController for AI image generation
 let imageGenAbortController: AbortController | null = null;
 
-const bookmarks = ref<{ cfi: string; label: string; timestamp: number }[]>([]);
+const bookmarks = ref<{ cfi: string; label: string; timestamp: number; snippet?: string }[]>([]);
 const showBookmarks = ref(false);
 
 const getBookmarksKey = () => `epub-bookmarks-${bookMetadata.value?.title || 'default'}`;
@@ -224,14 +224,14 @@ const handleFileUpload = async (file: File) => {
     // Load metadata
     try {
       console.log('Loading EPUB metadata');
-    const metadata = await epubService.loadEpub(file);
-    bookMetadata.value = metadata;
+      const metadata = await epubService.loadEpub(file);
+      bookMetadata.value = metadata;
       console.log('EPUB metadata loaded:', metadata);
       
       // Store just the book name for reference
       localStorage.setItem('lastOpenedBookName', file.name);
       
-      // Load book-specific font size
+      // Load book-specific font size (ensure always restored after reload)
       const savedFontSize = localStorage.getItem(getFontSizeKey());
       if (savedFontSize) {
         fontSize.value = parseInt(savedFontSize, 10);
@@ -503,6 +503,18 @@ const fontSize = ref(100); // Will be loaded per-book
 const minFontSize = 80;
 const maxFontSize = 200;
 
+// Restore font size for the current book on book load or metadata change
+watch(bookMetadata, () => {
+  if (bookMetadata.value) {
+    const savedFontSize = localStorage.getItem(getFontSizeKey());
+    if (savedFontSize) {
+      fontSize.value = parseInt(savedFontSize, 10);
+    } else {
+      fontSize.value = 100;
+    }
+  }
+});
+
 function increaseFontSize() {
   if (fontSize.value < maxFontSize) {
     fontSize.value += 10;
@@ -516,6 +528,23 @@ function decreaseFontSize() {
     localStorage.setItem(getFontSizeKey(), String(fontSize.value));
   }
 }
+
+// Also persist font size when changed directly (e.g., via slider or other UI)
+watch(fontSize, async (val, oldVal) => {
+  if (bookMetadata.value && oldVal !== undefined && val !== oldVal && bookmarks.value.length > 0) {
+    // For each bookmark, try to find the new CFI for its snippet
+    for (const bookmark of bookmarks.value) {
+      if (bookmark.snippet) {
+        // Search for the snippet in the book and get the new CFI
+        const newCfi = await bookViewerRef.value?.findCfiForSnippet?.(bookmark.snippet);
+        if (newCfi) {
+          bookmark.cfi = newCfi;
+        }
+      }
+    }
+    saveBookmarks();
+  }
+});
 
 // Keep slider in sync with BookViewer
 watch(() => pageInputValue.value, (val) => {
@@ -539,7 +568,15 @@ onMounted(() => {
     while (n--) u8arr[n] = bstr.charCodeAt(n);
     const file = new File([u8arr], lastBookName, { type: mime });
     showUpload.value = false;
-    handleFileUpload(file);
+    handleFileUpload(file).then(() => {
+      // Restore font size for the current book after reload
+      const savedFontSize = localStorage.getItem(getFontSizeKey());
+      if (savedFontSize) {
+        fontSize.value = parseInt(savedFontSize, 10);
+      } else {
+        fontSize.value = 100;
+      }
+    });
   }
   window.addEventListener('keydown', handleKeydown);
 });
@@ -580,7 +617,12 @@ function toggleBookmark() {
   if (idx > -1) {
     bookmarks.value.splice(idx, 1);
   } else {
-    bookmarks.value.push({ cfi, label: `Bookmark`, timestamp: Date.now() });
+    // Get a snippet of text at the CFI
+    bookViewerRef.value?.getCurrentPageText?.().then((snippet: string) => {
+      bookmarks.value.push({ cfi, label: `Bookmark`, timestamp: Date.now(), snippet: snippet?.slice(0, 64) });
+      saveBookmarks();
+    });
+    return;
   }
   saveBookmarks();
 }

@@ -100,17 +100,15 @@
         </button>
       </div>
           <div v-else>
-            <div v-if="walletState.chainId !== 84532" class="network-warning">
+            <div v-if="walletState.chainId !== 84532 && walletState.chainId !== 8453" class="network-warning">
               <span class="network-warning-icon">
-               <!-- <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff4136" stroke-width="2" style="vertical-align: middle; margin-right: 2px;"><circle cx="12" cy="12" r="10" fill="#fff6f6" stroke="#ff4136" stroke-width="2"/><line x1="12" y1="8" x2="12" y2="13" stroke="#ff4136" stroke-width="2"/><circle cx="12" cy="16" r="1" fill="#ff4136"/></svg> 
-               -->
                 <img src="/metamask-fox-dev.svg" alt="MetaMask" style="height: 18px; vertical-align: middle; margin-right: 4px; margin-left: 4px;" />
               </span>
               <span>
-                Please switch your wallet to <b>Base Sepolia</b>.
+                Please switch your wallet to <b>Base Mainnet</b> or <b>Base Sepolia</b> to mint.
               </span>
             </div>
-            <form @submit.prevent="mintNFT" class="mint-form">
+            <form v-if="walletState.chainId === 84532 || walletState.chainId === 8453" @submit.prevent="mintNFT" class="mint-form">
               <div class="form-group">
                 <label>Name <span class="required">*</span></label>
                 <input v-model="coinName" required placeholder="Zora Coin Name" />
@@ -123,44 +121,44 @@
                 <label>Description</label>
                 <textarea v-model="coinDescription" rows="3" placeholder="Description (optional)" />
               </div>
-        <button 
+              <button 
                 type="submit"
                 class="mint-btn main-mint-btn"
-                :disabled="walletState.chainId !== 84532 || isUploading || mintingState.isMinting || !coinName || mintingState.statusMessage === 'Waiting for MetaMask...'"
+                :disabled="isUploading || mintingState.isMinting || !coinName || mintingState.statusMessage === 'Waiting for MetaMask...'"
               >
                 <span v-if="isUploading">Uploading to IPFS...</span>
                 <span v-else-if="mintingState.statusMessage && mintingState.statusMessage !== 'Transaction was cancelled by the user.' && !mintingState.txHash">{{ mintingState.statusMessage }}</span>
                 <span v-else>Mint</span>
-        </button>
+              </button>
             </form>
-        <div v-if="mintingState.txHash" class="mint-success">
-          <div class="mint-success-content">
-            <div v-if="mintingState.coinAddress" class="zora-btn-center-wrap">
-              <a
-                :href="`https://testnet.zora.co/coin/bsep:${mintingState.coinAddress}`"
-                target="_blank"
-                rel="noopener"
-                class="zora-view-btn user-friendly-zora-btn"
-                aria-label="View your coin on Zora"
-              >
-                <img src="https://zora.co/favicon.ico" alt="Zora" style="height: 26px; margin-right: 10px; vertical-align: middle;" />
-                <span>View Your Coin on Zora</span>
-              </a>
-              <div class="zora-success-desc">You can now view, share, or trade your new Zora Coin on the Zora platform.</div>
+            <div v-if="(walletState.chainId === 84532 || walletState.chainId === 8453) && mintingState.txHash" class="mint-success">
+              <div class="mint-success-content">
+                <div v-if="mintingState.coinAddress" class="zora-btn-center-wrap">
+                  <a
+                    :href="`https://testnet.zora.co/coin/bsep:${mintingState.coinAddress}`"
+                    target="_blank"
+                    rel="noopener"
+                    class="zora-view-btn user-friendly-zora-btn"
+                    aria-label="View your coin on Zora"
+                  >
+                    <img src="https://zora.co/favicon.ico" alt="Zora" style="height: 26px; margin-right: 10px; vertical-align: middle;" />
+                    <span>View Your Coin on Zora</span>
+                  </a>
+                  <div class="zora-success-desc">You can now view, share, or trade your new Zora Coin on the Zora platform.</div>
+                </div>
+              </div>
+            </div>
+            <div v-if="(walletState.chainId === 84532 || walletState.chainId === 8453) && mintingState.error" class="mint-error">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+              </svg>
+              {{ mintingState.error }}
             </div>
           </div>
         </div>
-        <div v-if="mintingState.error" class="mint-error">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="15" y1="9" x2="9" y2="15"/>
-            <line x1="9" y1="9" x2="15" y2="15"/>
-          </svg>
-          {{ mintingState.error }}
-        </div>
       </div>
-    </div>
-  </div>
     </div>
   </Teleport>
 </template>

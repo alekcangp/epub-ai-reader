@@ -118,6 +118,12 @@ watch(
             pendingCfiCheck = { requested: props.currentCfi, triedFallback: false };
           }
         }, 100);
+        // Always apply the font size after book is loaded and displayed
+        if (props.fontSize) {
+          rendition.themes.fontSize(props.fontSize + '%');
+        } else {
+          rendition.themes.fontSize('100%');
+        }
         emit('bookReady');
         
         // Set up event listeners
@@ -148,9 +154,6 @@ watch(
           }
         });
         
-        // Restore font size
-        rendition.themes.fontSize(fontSize.value + '%');
-        
       } catch (error) {
         // Notify parent of error
         emit('bookReady'); // Still emit to clear loading state
@@ -162,10 +165,19 @@ watch(
 
 watch(
   () => props.fontSize,
-  (newFontSize) => {
-    if (rendition && newFontSize) {
-      rendition.themes.fontSize(newFontSize + '%');
-  }
+  async (newFontSize) => {
+    if (rendition) {
+      // Always apply the font size, even if the value is the same
+      rendition.themes.fontSize((newFontSize || 100) + '%');
+      // After font size change, recalculate current CFI and emit pageChange
+      await new Promise(resolve => setTimeout(resolve, 100)); // Wait for reflow
+      const loc = rendition.currentLocation?.();
+      if (loc && loc.start && loc.start.cfi && epubBook && epubBook.locations) {
+        const total = epubBook.locations.length();
+        const current = epubBook.locations.locationFromCfi(loc.start.cfi) + 1;
+        emit('pageChange', { page: current, total, cfi: loc.start.cfi });
+      }
+    }
   },
   { immediate: true }
 );
@@ -284,7 +296,26 @@ function injectedNavKeydown(event: KeyboardEvent) {
   }
 }
 
-defineExpose({ nextPage, previousPage, getCurrentCfi, goToCfi, getCurrentPageText });
+// Find the CFI for a given text snippet (used for robust bookmarks)
+async function findCfiForSnippet(snippet: string): Promise<string | null> {
+  if (!epubBook || !epubBook.spine) return null;
+  for (let i = 0; i < epubBook.spine.length; i++) {
+    const section = epubBook.spine.get(i);
+    if (!section) continue;
+    try {
+      const text = await section.load().then((sec: any) => sec?.contents?.textContent || '');
+      const idx = text.indexOf(snippet);
+      if (idx !== -1) {
+        // Get CFI for this position
+        const cfi = section.cfiFromTextLocation(idx);
+        if (cfi) return cfi;
+      }
+    } catch (e) { /* ignore */ }
+  }
+  return null;
+}
+
+defineExpose({ nextPage, previousPage, getCurrentCfi, goToCfi, getCurrentPageText, findCfiForSnippet });
 </script>
 
 <style scoped>

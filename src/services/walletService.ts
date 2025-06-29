@@ -1,5 +1,5 @@
 import { createWalletClient, custom, type WalletClient } from 'viem';
-import { mainnet, baseSepolia } from 'viem/chains';
+import { mainnet, baseSepolia, base } from 'viem/chains';
 import type { WalletState } from '../types/wallet';
 import { createPublicClient, http } from 'viem';
 
@@ -33,8 +33,17 @@ class WalletService {
       });
 
       // Create wallet client
+      let chainObj;
+      const parsedChainId = parseInt(chainId, 16);
+      if (parsedChainId === 84532) {
+        chainObj = baseSepolia;
+      } else if (parsedChainId === 8453) {
+        chainObj = base;
+      } else {
+        chainObj = mainnet;
+      }
       this.client = createWalletClient({
-        chain: parseInt(chainId, 16) === 84532 ? baseSepolia : mainnet,
+        chain: chainObj,
         transport: custom(window.ethereum),
         account: accounts[0] as `0x${string}`
       });
@@ -42,7 +51,7 @@ class WalletService {
       this.state = {
         isConnected: true,
         address: accounts[0],
-        chainId: parseInt(chainId, 16),
+        chainId: parsedChainId,
         isConnecting: false
       };
 
@@ -106,17 +115,29 @@ class WalletService {
     };
   }
 
-  getPublicClient() {
-    // Use the current chain if connected, otherwise default to baseSepolia
-    const chain = this.state.chainId === 84532 ? baseSepolia : mainnet;
-    const rpcUrl = chain === baseSepolia
-      ? 'https://sepolia.base.org'
-      : 'https://rpc.ankr.com/eth';
-    return createPublicClient({ chain, transport: http(rpcUrl) });
+  isOnBaseNetwork(): boolean {
+    return this.state.chainId === 84532 || this.state.chainId === 8453;
   }
 
-  isOnBaseSepolia(): boolean {
-    return this.state.chainId === 84532;
+  getBaseChainId(): number | null {
+    if (this.state.chainId === 84532) return 84532;
+    if (this.state.chainId === 8453) return 8453;
+    return null;
+  }
+
+  getPublicClient() {
+    let chain, rpcUrl;
+    if (this.state.chainId === 84532) {
+      chain = baseSepolia;
+      rpcUrl = 'https://sepolia.base.org';
+    } else if (this.state.chainId === 8453) {
+      chain = base;
+      rpcUrl = 'https://mainnet.base.org';
+    } else {
+      chain = mainnet;
+      rpcUrl = 'https://rpc.ankr.com/eth';
+    }
+    return createPublicClient({ chain, transport: http(rpcUrl) });
   }
 }
 
