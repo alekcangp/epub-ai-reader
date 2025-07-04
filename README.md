@@ -1,6 +1,7 @@
 # EPUB AI Reader
 
 [Live Demo](https://epub-ai-reader-multi.vercel.app/)
+[DeepWiki](https://deepwiki.com/alekcangp/epub-ai-reader)
 
 A modern web application for reading EPUB books, generating AI illustrations, and minting Zora coins (ERC-20) with seamless blockchain and IPFS integration.
 
