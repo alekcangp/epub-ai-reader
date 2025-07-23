@@ -1,10 +1,43 @@
 <template>
   <div class="image-viewer">
     <div class="image-style-select">
-      <label for="art-style">Art Style: </label>
-      <select id="art-style" :value="props.selectedArtStyle" @change="handleArtStyleChange">
-        <option v-for="style in ArtStyles" :key="style" :value="style">{{ style }}</option>
-      </select>
+      <label for="art-style-combobox">Art Style: </label>
+      <div class="combobox-wrapper">
+        <input
+          id="art-style-combobox"
+          ref="comboboxInput"
+          :readonly="!isCustomSelected"
+          :value="displayedValue"
+          @focus="openDropdown"
+          @click="openDropdown"
+          @input="onInput"
+          @keydown.down.prevent="onArrowDown"
+          @keydown.up.prevent="onArrowUp"
+          @keydown.enter.prevent="onEnter"
+          @keydown.esc.prevent="closeDropdown"
+          @blur="onBlur"
+          class="combobox-input"
+          autocomplete="off"
+          placeholder="Choose or enter style"
+        />
+        <ul :class="['combobox-dropdown', filteredStyles.length > 8 ? 'too-many' : '']" v-if="dropdownOpen">
+          <li
+            v-for="(style, idx) in filteredStyles"
+            :key="style"
+            :class="{ selected: idx === highlightedIndex }"
+            @mousedown.prevent="selectStyle(style)"
+          >
+            {{ style }}
+          </li>
+          <li
+            v-if="!(filteredStyles as string[]).includes('Custom...')"
+            :class="{ selected: highlightedIndex === filteredStyles.length }"
+            @mousedown.prevent="selectStyle('Custom...')"
+          >
+            Custom...
+          </li>
+        </ul>
+      </div>
     </div>
     <div class="image-container">
       <div v-if="props.isGenerating" class="loading-state">
@@ -164,7 +197,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue';
 import type { WalletState, MintingState } from '../types/wallet';
 import walletService from '../services/walletService';
 import zoraService from '../services/zoraService';
@@ -215,6 +248,132 @@ const ArtStyles = [
   'Retro Wave',
   'Sci-Fi'
 ] as const;
+
+const comboboxInput = ref<HTMLInputElement | null>(null);
+const dropdownOpen = ref(false);
+const highlightedIndex = ref(-1);
+const filterText = ref('');
+const isCustomSelected = computed(() => selectedStyle.value === 'Custom...');
+
+const selectedStyle = ref(
+  ArtStyles.includes((props.selectedArtStyle as any))
+    ? props.selectedArtStyle
+    : 'Custom...'
+);
+const customStyle = ref(
+  ArtStyles.includes((props.selectedArtStyle as any))
+    ? ''
+    : props.selectedArtStyle || ''
+);
+
+const displayedValue = computed(() => {
+  if (isCustomSelected.value) return customStyle.value;
+  return selectedStyle.value;
+});
+
+const filteredStyles = computed(() => {
+  if (!dropdownOpen.value || !filterText.value) return [...ArtStyles];
+  return ArtStyles.filter(style =>
+    style.toLowerCase().includes(filterText.value.toLowerCase())
+  );
+});
+
+function openDropdown() {
+  dropdownOpen.value = true;
+  filterText.value = '';
+  highlightedIndex.value = -1;
+  // Do not select all text on open
+}
+
+function closeDropdown() {
+  dropdownOpen.value = false;
+  filterText.value = '';
+  highlightedIndex.value = -1;
+}
+
+function selectStyle(style: string) {
+  if (style === 'Custom...') {
+    selectedStyle.value = 'Custom...';
+    // If there is a saved custom style, restore it
+    const saved = localStorage.getItem('epub-custom-art-style');
+    customStyle.value = saved || '';
+    nextTick(() => {
+      if (comboboxInput.value) comboboxInput.value.focus();
+    });
+    // If customStyle is not empty, generate immediately
+    if ((saved && saved.trim()) || (customStyle.value && customStyle.value.trim())) {
+      emit('regenerate', customStyle.value);
+    }
+  } else {
+    selectedStyle.value = style;
+    customStyle.value = '';
+    emit('regenerate', style);
+  }
+  closeDropdown();
+}
+
+function onInput(e: Event) {
+  const val = (e.target as HTMLInputElement).value;
+  if (isCustomSelected.value) {
+    customStyle.value = val;
+    // Do not emit here; only emit on Enter
+  } else {
+    filterText.value = val;
+    dropdownOpen.value = true;
+  }
+}
+
+function onArrowDown() {
+  if (!dropdownOpen.value) openDropdown();
+  if (highlightedIndex.value < filteredStyles.value.length - 1) {
+    highlightedIndex.value++;
+  } else if (isCustomSelected.value && highlightedIndex.value < filteredStyles.value.length) {
+    highlightedIndex.value++;
+  }
+}
+
+function onArrowUp() {
+  if (highlightedIndex.value > 0) {
+    highlightedIndex.value--;
+  }
+}
+
+function onEnter() {
+  if (dropdownOpen.value) {
+    if (highlightedIndex.value >= 0 && highlightedIndex.value < filteredStyles.value.length) {
+      selectStyle(filteredStyles.value[highlightedIndex.value]);
+    } else if (highlightedIndex.value === filteredStyles.value.length) {
+      selectStyle('Custom...');
+    } else if (isCustomSelected.value && customStyle.value) {
+      emit('regenerate', customStyle.value);
+      localStorage.setItem('epub-custom-art-style', customStyle.value);
+      closeDropdown();
+    }
+  } else if (isCustomSelected.value && customStyle.value) {
+    emit('regenerate', customStyle.value);
+    localStorage.setItem('epub-custom-art-style', customStyle.value);
+  }
+}
+
+watch([isCustomSelected, customStyle], ([isCustom, val]) => {
+  if (isCustom && val) {
+    localStorage.setItem('epub-custom-art-style', val);
+  }
+});
+
+function onBlur() {
+  setTimeout(() => closeDropdown(), 100);
+}
+
+watch(() => props.selectedArtStyle, (val) => {
+  if (val && ArtStyles.includes(val as any)) {
+    selectedStyle.value = val;
+    customStyle.value = '';
+  } else if (val && val !== 'Custom...') {
+    selectedStyle.value = 'Custom...';
+    customStyle.value = val;
+  }
+});
 
 // Helper to convert data URL to Blob
 function dataURLtoBlob(dataurl: string) {
@@ -368,17 +527,17 @@ watch(
   }
 );
 
-// Remove watcher on selectedArtStyle and add a handler for dropdown change
-function handleArtStyleChange(event: Event) {
-  const val = (event.target as HTMLSelectElement).value;
-  if (val && val !== props.selectedArtStyle) {
-    emit('regenerate', val);
-  }
-}
-
 onMounted(() => {
   walletState.value = walletService.getState();
   mintingState.value = zoraService.getMintingState();
+  // Ensure custom style is restored on reload
+  if (props.selectedArtStyle && !ArtStyles.includes(props.selectedArtStyle as any)) {
+    selectedStyle.value = 'Custom...';
+    customStyle.value = props.selectedArtStyle;
+  } else if (selectedStyle.value === 'Custom...') {
+    const saved = localStorage.getItem('epub-custom-art-style');
+    if (saved) customStyle.value = saved;
+  }
   // Listen for MetaMask account and chain changes
   if (window.ethereum) {
     window.ethereum.on('accountsChanged', async () => {
@@ -940,5 +1099,57 @@ onUnmounted(() => {
   color: #fff !important;
   transform: translateY(-2px) scale(1.04) !important;
   box-shadow: 0 12px 36px 0 rgba(37,99,235,0.18), 0 2px 12px 0 rgba(16,185,129,0.18) !important;
+}
+.combobox-wrapper {
+  position: relative;
+  display: inline-block;
+  min-width: 240px;
+}
+.combobox-input {
+  font-size: 1rem;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  outline: none;
+  transition: border 0.2s;
+  width: 220px;
+  background: rgb(239,226,204);
+  color: #1D1D1F;
+}
+.combobox-input:focus {
+  border: 1.5px solid #007AFF;
+}
+.combobox-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background: rgb(239,226,204);
+  border: 1px solid #ccc;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  margin-top: 2px;
+  list-style: none;
+  padding: 0;
+  height: auto;
+  overflow-y: visible;
+}
+/* If there are more than 8 items, limit height and enable scroll */
+.combobox-dropdown.too-many {
+  max-height: 320px;
+  overflow-y: auto;
+}
+.combobox-dropdown li {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 1rem;
+  color: #1D1D1F;
+  background: rgb(239,226,204);
+  transition: background 0.15s;
+}
+.combobox-dropdown li.selected,
+.combobox-dropdown li:hover {
+  background: #e6eeff;
+  color: #0056CC;
 }
 </style>

@@ -371,12 +371,10 @@ const downloadImage = (imageUrl: string) => {
 let imageGenDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function handlePageChange({ page, cfi }: { page: number; cfi: string }) {
-  console.log('[EpubReader] handlePageChange:', { page, cfi, currentCfi: currentCfi.value, pendingRestoreCfi });
-  
   if (pendingRestoreCfi) {
     if (cfi === pendingRestoreCfi) {
       // Arrived at the restored CFI, now allow saving
-      console.log('[EpubReader] Arrived at restored CFI, will now save future CFIs');
+      
       pendingRestoreCfi = null;
       if (cfiRestorationTimeout) {
         clearTimeout(cfiRestorationTimeout);
@@ -384,7 +382,6 @@ async function handlePageChange({ page, cfi }: { page: number; cfi: string }) {
       }
     } else {
       // Not at the restored CFI yet, do not save
-      console.log('[EpubReader] Waiting for restored CFI, not saving');
       return;
     }
   }
@@ -445,7 +442,7 @@ async function generateImageForCurrentPage(style?: string) {
 }
 
 let lastPageTurnTime = 0;
-const PAGE_TURN_DELAY = 100; // ms
+const PAGE_TURN_DELAY = 10; // ms
 
 async function nextPage() {
   const now = Date.now();
@@ -460,10 +457,8 @@ async function nextPage() {
     }
     console.log('[EpubReader] User turned page during CFI restoration, clearing pendingRestoreCfi');
   }
-  console.log('[EpubReader] nextPage called. currentCfi:', currentCfi.value);
   if (bookViewerRef.value?.nextPage) {
     await bookViewerRef.value.nextPage();
-    console.log('[EpubReader] nextPage finished. currentCfi:', currentCfi.value);
   }
 }
 async function previousPage() {
@@ -479,10 +474,8 @@ async function previousPage() {
     }
     console.log('[EpubReader] User turned page during CFI restoration, clearing pendingRestoreCfi');
   }
-  console.log('[EpubReader] previousPage called. currentCfi:', currentCfi.value);
   if (bookViewerRef.value?.previousPage) {
     await bookViewerRef.value.previousPage();
-    console.log('[EpubReader] previousPage finished. currentCfi:', currentCfi.value);
   }
 }
 
@@ -501,7 +494,7 @@ function handleKeydown(event: KeyboardEvent) {
 const pageInputValue = ref(1);
 const fontSize = ref(100); // Will be loaded per-book
 const minFontSize = 80;
-const maxFontSize = 200;
+const maxFontSize = 350;
 
 // Restore font size for the current book on book load or metadata change
 watch(bookMetadata, () => {
@@ -672,21 +665,15 @@ const onBookReady = () => {
   if (lastCfi) {
     currentCfi.value = lastCfi;
     pendingRestoreCfi = lastCfi;
-    console.log('[onBookReady] Restored lastCfi:', lastCfi);
-    
-    // Set a timeout to clear the restoration state if it takes too long
-    cfiRestorationTimeout = setTimeout(() => {
-      if (pendingRestoreCfi) {
-        console.log('[onBookReady] CFI restoration timeout - clearing pending state');
-        pendingRestoreCfi = null;
-        // Generate image for current page since restoration is complete
-        setTimeout(() => generateImageForCurrentPage(selectedArtStyle.value), 500);
-      }
-    }, 3000); // 3 second timeout for CFI restoration
-  } else {
-    // No CFI to restore, generate image for first page
-    setTimeout(() => generateImageForCurrentPage(selectedArtStyle.value), 1000);
   }
+  
+  // Set a timeout to clear the restoration state if it takes too long
+  cfiRestorationTimeout = setTimeout(() => {
+    if (pendingRestoreCfi) {
+      // Generate image for current page since restoration is complete
+      setTimeout(() => generateImageForCurrentPage(selectedArtStyle.value), 500);
+    }
+  }, 3000); // 3 second timeout for CFI restoration
 };
 
 // Watch and persist art style changes

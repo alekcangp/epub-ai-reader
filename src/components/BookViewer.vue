@@ -488,22 +488,18 @@ defineExpose({ nextPage, previousPage, getCurrentCfi, goToCfi, getCurrentPageTex
 
 .epub-container-fixed {
   position: relative;
-  min-height: 800px;
+  
   height: 100%;
-  overflow: hidden;
+
   background: rgb(239,226,204);
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
-.epub-container-fixed > div {
-  max-width: 700px;
-  margin: 0 auto;
-  width: 100%;
-  box-sizing: border-box;
-  padding: 32px 24px 24px 24px;
-  text-align: justify;
-}
+
 
 .loading-overlay {
   position: absolute;
@@ -543,11 +539,6 @@ defineExpose({ nextPage, previousPage, getCurrentCfi, goToCfi, getCurrentPageTex
   flex-direction: column;
 }
 
-.epub-container-fixed {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-}
 
 .viewer-controls {
   flex-shrink: 0;
@@ -563,5 +554,13 @@ defineExpose({ nextPage, previousPage, getCurrentCfi, goToCfi, getCurrentPageTex
   justify-content: center;
   overflow: hidden;
   background: transparent;
+}
+
+
+
+::v-deep .epub-container-fixed * {
+  height: 100% !important;
+  min-height: 100% !important;
+  box-sizing: border-box;
 }
 </style>
